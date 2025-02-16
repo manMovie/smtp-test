@@ -2,19 +2,45 @@ const SMTPServer = require("smtp-server").SMTPServer;
 const { simpleParser } = require("mailparser");
 const MAIL = require("../../model/mails.models");
 const EMAIL = require("../../model/email.model");
+const USER = require('../../model/user.model');
+const bcrypt = require("bcrypt");
 
 const server = new SMTPServer({
+  authMethods:['LOGIN','PLAIN'],
   allowInsecureAuth: true,
   authOptional: true,
+
+  async onAuth(auth,session,callback){
+    try {
+      const username = auth.username.toLowerCase().trim();
+    const password = auth.password;
+
+    const user = await USER.findOne({email:username});
+    if(!user){
+      console.log("user not found")
+      return callback(new Error("User not found")); // User doesn't exist
+    }
+    const checkpassword = await bcrypt.compare(password,user.password);
+    if(!checkpassword){
+      return callback(new Error("Invalid password"));
+    }
+    session.user = user; // Store user in session
+    callback(null, { user: username }); 
+    } catch (error) {
+      callback(new Error("Authentication failed"));
+    }
+  },
   
   // Called when a client connects
   onConnect(session, callback) {
+    
     console.log("SMTP server connected - Session ID:", session.id);
     callback();
   },
 
   // Called for the MAIL FROM command
   onMailFrom(address, session, callback) {
+    console.log(`New connection from ${session.remoteAddress} (ID: ${session.id})`);
     console.log("MAIL FROM:", address.address, "- Session ID:", session.id);
     callback();
   },

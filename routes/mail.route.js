@@ -52,5 +52,12 @@ router.get("/mail",async(req,res)=>{
    }
 })
 
+// impliment send mail feature
+router.post("/send",(req,res)=>{
+
+})
+
+
+
 
 module.exports = router;
