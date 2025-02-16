@@ -1,5 +1,7 @@
 const SMTPServer = require("smtp-server").SMTPServer;
 const simpleParser = require("mailparser").simpleParser;
+const MAIL = require("../../model/mails.models");
+const EMAIL = require("../../model/email.model");
 
 const server = new SMTPServer({
     allowInsecureAuth:true,
@@ -30,13 +32,19 @@ const server = new SMTPServer({
       try {
         // Parse the email using mailparser
         const message = await simpleParser(mailStream);
-        console.log("Parsed Email:", {
+        const email = await EMAIL.findOne({email:message.to})
+        if(!email){
+          return cb();
+        }
+        const saveMail = await MAIL.create({
+          emailId:email._id,
           from: message.from,
           to: message.to,
           subject: message.subject,
           text: message.text,
           html: message.html,
-        });
+        })
+        console.log("mail save",saveMail);
         cb();
       } catch (error) {
         console.error("Error parsing email:", error);
