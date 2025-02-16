@@ -1,71 +1,88 @@
 const SMTPServer = require("smtp-server").SMTPServer;
-const simpleParser = require("mailparser").simpleParser;
+const { simpleParser } = require("mailparser");
 const MAIL = require("../../model/mails.models");
 const EMAIL = require("../../model/email.model");
 
 const server = new SMTPServer({
   allowInsecureAuth: true,
   authOptional: true,
-  onConnect(session, cb) {
+  
+  // Called when a client connects
+  onConnect(session, callback) {
     console.log("SMTP server connected - Session ID:", session.id);
-    cb();
+    callback();
   },
 
-  onMailFrom(address, session, cb) {
+  // Called for the MAIL FROM command
+  onMailFrom(address, session, callback) {
     console.log("MAIL FROM:", address.address, "- Session ID:", session.id);
-    cb();
+    callback();
   },
 
-  onRcptTo(address, session, cb) {
+  // Called for the RCPT TO command
+  onRcptTo(address, session, callback) {
     console.log("RCPT TO:", address.address, "- Session ID:", session.id);
-    cb();
+    callback();
   },
 
-  onData(stream, session, cb) {
+  // Called when the email data is sent
+  onData(stream, session, callback) {
     let mailStream = "";
 
-    stream.on("data", (data) => {
-      mailStream += data.toString();
+    // Collect the stream data into a string
+    stream.on("data", (chunk) => {
+      mailStream += chunk.toString();
     });
 
+    // When the stream ends, process the email
     stream.on("end", async () => {
       try {
-        // Parse the email using mailparser
+        // Parse the email message
         const message = await simpleParser(mailStream);
-        const isEmail = await EMAIL.findOne({email:message.to});
-        
-        console.log("email model ",isEmail)
 
-        // Check if the email is not found
-        if (!isEmail) {
-          console.log("No email found for:", message.to);
-          // Return or handle the case where no email was found (e.g., skip saving the mail)
-          return cb();  // Ends the process without saving the email
+        // Safely extract the recipient email address
+        const emailToCheck = message.to?.value?.[0]?.address?.toLowerCase().trim();
+        if (!emailToCheck) {
+          console.error("Recipient email not found in message.to");
+          return callback();
         }
 
-        // If email is found, save it to the database
-        const saveMail = await MAIL.create({
+        // Find the email record in our Email model
+        const isEmail = await EMAIL.findOne({ email: emailToCheck });
+        if (!isEmail) {
+          console.log("No email record found for:", emailToCheck);
+          return callback(); // Stop processing if no record exists
+        }
+
+        // Safely extract the sender email address and prepare data
+        const fromEmail = message.from?.value?.[0]?.address?.toLowerCase().trim() || "";
+        
+        // Create the mail document using our schema
+        const newMail = await MAIL.create({
           emailId: isEmail._id,
-          from: message.from,
-          to: message.to,
-          subject: message.subject,
-          text: message.text,
-          html: message.html,
+          from: fromEmail,
+          to: emailToCheck,
+          subject: message.subject || "",
+          text: message.text || "",
+          html: message.html || ""
         });
-        isEmail.allMails.push(saveMail._id)
+
+        // Add the new mail to the email's list of mails and save
+        isEmail.allMails.push(newMail._id);
         await isEmail.save();
-        console.log("Mail saved:", saveMail);
-        cb(); // Proceed with the normal flow
+
+        console.log("Mail saved:", newMail);
+        callback(); // Successfully finish processing
       } catch (error) {
         console.error("Error parsing email:", error);
-        cb(new Error("Failed to process email")); // Reject the email
+        callback(new Error("Failed to process email"));
       }
     });
   },
 
   onError(err) {
     console.error("SMTP Server Error:", err);
-  },
+  }
 });
 
 module.exports = { smtpServer: server };
