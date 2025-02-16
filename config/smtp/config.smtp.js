@@ -4,8 +4,8 @@ const MAIL = require("../../model/mails.models");
 const EMAIL = require("../../model/email.model");
 
 const server = new SMTPServer({
-    allowInsecureAuth:true,
-    authOptional:true,
+  allowInsecureAuth: true,
+  authOptional: true,
   onConnect(session, cb) {
     console.log("SMTP server connected - Session ID:", session.id);
     cb();
@@ -32,20 +32,30 @@ const server = new SMTPServer({
       try {
         // Parse the email using mailparser
         const message = await simpleParser(mailStream);
-        const email = await EMAIL.findOne({email:message.to})
-        if(!email){
-          return cb();
+        const email = await EMAIL.findOne({ email: message.to });
+        
+        console.log("email model ",email)
+
+        // Check if the email is not found
+        if (!email) {
+          console.log("No email found for:", message.to);
+          // Return or handle the case where no email was found (e.g., skip saving the mail)
+          return cb();  // Ends the process without saving the email
         }
+
+        // If email is found, save it to the database
         const saveMail = await MAIL.create({
-          emailId:email._id,
+          emailId: email._id,
           from: message.from,
           to: message.to,
           subject: message.subject,
           text: message.text,
           html: message.html,
-        })
-        console.log("mail save",saveMail);
-        cb();
+        });
+        email.allMails.push(saveMail._id)
+        await email.save();
+        console.log("Mail saved:", saveMail);
+        cb(); // Proceed with the normal flow
       } catch (error) {
         console.error("Error parsing email:", error);
         cb(new Error("Failed to process email")); // Reject the email
