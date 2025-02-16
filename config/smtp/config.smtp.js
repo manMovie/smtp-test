@@ -32,12 +32,12 @@ const server = new SMTPServer({
       try {
         // Parse the email using mailparser
         const message = await simpleParser(mailStream);
-        const email = await EMAIL.findOne({ email: message.to });
+        const isEmail = await EMAIL.findOne({email:message.to});
         
-        console.log("email model ",email)
+        console.log("email model ",isEmail)
 
         // Check if the email is not found
-        if (!email) {
+        if (!isEmail) {
           console.log("No email found for:", message.to);
           // Return or handle the case where no email was found (e.g., skip saving the mail)
           return cb();  // Ends the process without saving the email
@@ -45,15 +45,15 @@ const server = new SMTPServer({
 
         // If email is found, save it to the database
         const saveMail = await MAIL.create({
-          emailId: email._id,
+          emailId: isEmail._id,
           from: message.from,
           to: message.to,
           subject: message.subject,
           text: message.text,
           html: message.html,
         });
-        email.allMails.push(saveMail._id)
-        await email.save();
+        isEmail.allMails.push(saveMail._id)
+        await isEmail.save();
         console.log("Mail saved:", saveMail);
         cb(); // Proceed with the normal flow
       } catch (error) {

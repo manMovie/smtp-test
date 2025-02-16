@@ -26,10 +26,16 @@ router.get("/create",async(req,res)=>{
 router.get("/mail",async(req,res)=>{
    try {
     const {emailId} = req.body;
-    const mails = await MAIL.findOne({email:emailId});
+    const mails = await EMAIL.findOne({email:emailId});
     if(!mails){
         return res.status(404).json({
             status: "Not Found",
+            message:"No Mail found",
+        })
+    }
+    if(mails.length <= 0){
+        return res.status(400).json({
+            status: "Empty",
             message:"No Mails found",
         })
     }
